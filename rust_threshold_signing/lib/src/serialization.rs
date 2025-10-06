@@ -16,6 +16,7 @@ pub struct SignerResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CombinedSignature {
+    #[serde(with = "serde_big_array::BigArray")]
     pub signature: [u8; 64],
     pub public_key: [u8; 32],
 }

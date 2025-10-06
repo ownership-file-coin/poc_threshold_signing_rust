@@ -1,0 +1,22 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# SP1 compiled binaries
+program/elf/
+
+# SP1 proof artifacts (large files)
+solidity_threshold_signing/proof.bin
+solidity_threshold_signing/vk.bin
+*.bin
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

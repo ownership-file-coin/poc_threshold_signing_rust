@@ -68,7 +68,7 @@ fn main() {
     let (pk, vk) = client.setup(elf);
 
     println!("Proving (this may take a few minutes)...");
-    let proof = client.prove(&pk, stdin).expect("Proving failed");
+    let mut proof = client.prove(&pk, stdin).run().expect("Proving failed");
 
     println!("Proof generated successfully!\n");
 

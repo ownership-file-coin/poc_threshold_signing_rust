@@ -134,7 +134,7 @@ poc_threshold_signing_rust/
 
 ### 1. Threshold Key Generation
 
-The system uses FROST's Distributed Key Generation (DKG) protocol:
+The system uses FROST's trusted dealer key generation for simplicity:
 
 ```rust
 let (key_packages, pubkey_package) = generate_frost_keys(5, 3)?;
@@ -143,7 +143,9 @@ let (key_packages, pubkey_package) = generate_frost_keys(5, 3)?;
 This generates:
 - 5 secret key shares (one per signer)
 - A shared public key
-- No single entity knows the full private key
+- Uses trusted dealer method (simpler for PoC, still produces valid FROST signatures)
+
+**Note**: For production, implement the full Distributed Key Generation (DKG) protocol which doesn't require a trusted party. The DKG implementation skeleton is included in the code for future development.
 
 ### 2. Threshold Signing Process
 

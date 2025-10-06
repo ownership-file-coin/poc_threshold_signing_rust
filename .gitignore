@@ -1,0 +1,15 @@
+# Claude Code directories - ignore everything except commands
+.claude/*
+!.claude/commands/
+!.claude/commands/**
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
