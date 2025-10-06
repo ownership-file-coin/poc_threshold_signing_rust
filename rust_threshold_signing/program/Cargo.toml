@@ -1,0 +1,10 @@
+[package]
+name = "threshold-signing-program"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { version = "3.0.0" }
+threshold-signing-lib = { path = "../lib" }
+ed25519-dalek = { version = "2.1", default-features = false, features = ["serde"] }
+serde = { version = "1.0", default-features = false }
