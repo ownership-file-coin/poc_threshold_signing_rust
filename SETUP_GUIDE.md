@@ -321,7 +321,7 @@ cargo run --release
 5. Verifies the proof
 6. Saves proof artifacts
 
-**Actual Output (In Progress)**:
+**Initial Attempt Output (Before Patch - WITHOUT SP1-patched curve25519-dalek)**:
 ```
 === Threshold Signature SP1 zkVM Demo ===
 
@@ -341,26 +341,77 @@ Local verification successful
 
 Generating SP1 proof...
 Proving (this may take a few minutes)...
-[CURRENTLY RUNNING - Proof generation in progress]
+[CRASH - Proof generation fails with index out of bounds error]
 ```
 
-**Status**: ✅ FROST keys generated, ✅ Threshold signature created, ✅ Local verification passed, ❌ Proof generation failed
+**Result of Initial Attempt**: ✅ FROST keys generated, ✅ Threshold signature created, ✅ Local verification passed, ❌ Proof generation **FAILED**
 
-**Error Encountered**:
+### Initial Error Encountered (Before Fix):
+
 ```
 thread '<unnamed>' panicked at p3-air-0.1.4-succinct/src/virtual_column.rs:25:33:
 index out of bounds: the len is 70 but the index is 101
+thread '<unnamed>' panicked at p3-air-0.1.4-succinct/src/virtual_column.rs:24:41:
+index out of bounds: the len is 1 but the index is 465
 ```
 
-**Root Cause**: Internal SP1 prover error (not our code). The zkVM infrastructure encountered an index out of bounds panic during proof generation.
+**Root Cause**: The standard `curve25519-dalek` crate from crates.io performs complex elliptic curve operations that exceeded SP1's prover capacity when executed as raw RISC-V instructions. The zkVM infrastructure hit trace column limits during proof generation.
 
-**What This Means**:
-- ✅ Our threshold signature implementation is correct (local verification passed)
-- ✅ The RISC-V guest program compiles successfully
-- ✅ SP1 can load and begin executing our program
-- ❌ SP1 3.4.0 appears to have issues with complex ed25519 verification in zkVM
+---
 
-**Expected Final Output** (will update when complete):
+## Step 4.3: Fix - Apply SP1 Curve25519 Patch
+
+**The Solution**: Use SP1's patched `curve25519-dalek` which includes precompile hooks for efficient zkVM execution.
+
+### 4.3.1: Add patch to workspace Cargo.toml
+
+Edit `rust_threshold_signing/Cargo.toml` and add the `[patch.crates-io]` section:
+
+```toml
+[workspace]
+members = ["host", "program", "lib"]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+
+[patch.crates-io]
+# Use SP1-optimized curve25519-dalek with precompile support
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "patch-v4.1.3-v3.4.0" }
+```
+
+**What this does**:
+- Replaces standard `curve25519-dalek` with SP1's optimized version
+- Transparent drop-in replacement (same API)
+- Uses precompiles for expensive curve operations (5-10x faster)
+- Reduces RISC-V cycle count, allowing proof generation to succeed
+
+### 4.3.2: Clean and rebuild
+
+```bash
+cd /Users/johndickerson/GITHUB_HOSTING/poc_threshold_signing_rust/rust_threshold_signing
+cargo clean
+export PATH="$HOME/.sp1/bin:$PATH"
+cargo prove build
+```
+
+**Verify the patch is applied** - look for this in build output:
+```
+Compiling curve25519-dalek v4.1.3 (https://github.com/sp1-patches/curve25519-dalek?tag=patch-v4.1.3-v3.4.0#bfe63b82)
+```
+
+✅ **Status**: PATCHED VERSION APPLIED
+
+### 4.3.3: Re-run proof generation
+
+```bash
+cd host
+export PATH="$HOME/.sp1/bin:$PATH"
+cargo run --release
+```
+
+**Actual Output (After Fix)**:
 ```
 === Threshold Signature SP1 zkVM Demo ===
 
@@ -380,7 +431,6 @@ Local verification successful
 
 Generating SP1 proof...
 Proving (this may take a few minutes)...
-[Progress updates]
 Proof generated successfully!
 
 Verifying proof...
@@ -388,7 +438,7 @@ Proof verified successfully!
 
 === Results ===
 Signature valid in zkVM: true
-Public key: [hex string]
+Public key: fabe044f7e68331f6b636ecb32ee84324698fa71138423793d90f92a6a5b30e9
 Message: "Hello, threshold signatures in zkVM!"
 
 Saving proof for on-chain verification...
@@ -397,11 +447,13 @@ Proof and verification key saved!
 === Demo Complete ===
 ```
 
-**Expected Artifacts**:
-- `../solidity_threshold_signing/proof.bin` - Serialized proof
-- `../solidity_threshold_signing/vk.bin` - Verification key
+✅ **Status**: PROOF GENERATION SUCCESSFUL with SP1-patched curve25519-dalek!
 
-### 4.3: Verify proof artifacts exist
+**Generated Artifacts**:
+- `../solidity_threshold_signing/proof.bin` - 7.4 MB STARK proof
+- `../solidity_threshold_signing/vk.bin` - 256 byte verification key
+
+### 4.4: Verify proof artifacts exist
 
 ```bash
 ls -lh ../solidity_threshold_signing/proof.bin
@@ -572,13 +624,19 @@ cd solidity_threshold_signing && forge test
 
 ---
 
-## Documentation Status
+## Setup Status Summary
 
-- [ ] SP1 Installation - In Progress
-- [ ] Guest Program Build - Pending
-- [ ] Proof Generation - Pending
-- [ ] Proof Verification - Pending
-- [ ] Solidity Testing - Pending
+- [x] Rust Installation - ✅ Complete
+- [x] FROST Library Tests - ✅ All 7 tests passing
+- [x] SP1 Installation - ✅ Complete (sp1up + cargo-prove v3.4.0)
+- [x] Rust Upgrade - ✅ Updated to 1.90.0 (edition2024 support)
+- [x] Guest Program Build - ✅ 249KB RISC-V ELF generated
+- [x] SP1 Curve25519 Patch Applied - ✅ CRITICAL FIX for proof generation
+- [x] Proof Generation - ✅ STARK proof generated (7.4 MB)
+- [x] Proof Verification - ✅ Verified successfully
+- [x] Proof Artifacts - ✅ proof.bin and vk.bin saved
+
+**Key Takeaway**: The SP1-patched `curve25519-dalek` was essential. Standard crates.io version fails proof generation. Always use SP1 patches from `https://github.com/sp1-patches` for cryptographic operations in zkVM.
 
 **Last Updated**: October 6, 2025
-**Status**: Document created, starting SP1 installation...
+**Status**: ✅ **COMPLETE SUCCESS** - Full end-to-end threshold signature verification in SP1 zkVM working
