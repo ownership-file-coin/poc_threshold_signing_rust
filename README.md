@@ -241,16 +241,48 @@ Currently, the "network" communication is simulated via direct function calls. T
 
 4. **Add state management**: Track signing sessions across multiple rounds
 
-## Dependencies
+## Dependencies and SP1 Compatibility
 
-### Rust
+### Standard vs. Patched Dependencies
+
+This project uses **production-grade, unmodified threshold signature libraries**. The only modification is at the low-level cryptographic primitives layer to enable efficient proof generation in SP1 zkVM.
+
+**✅ Standard (unmodified from crates.io):**
+- `frost-ed25519` v2.2.0 - FROST threshold signature implementation
+- `ed25519-dalek` v2.1 - Ed25519 signature verification
+- All application logic and threshold signing protocols
+
+**🔧 SP1-Patched (drop-in replacement):**
+- `curve25519-dalek` v4.1.3 - Low-level elliptic curve operations
+  - Uses SP1's optimized version from `https://github.com/sp1-patches/curve25519-dalek`
+  - Same API, but includes precompile hooks for zkVM
+  - 5-10x faster proof generation via specialized STARK tables
+  - Applied via workspace-level `[patch.crates-io]` in `Cargo.toml`
+
+**Why this matters:**
+- The threshold signature logic itself is **standard and audited** (frost-ed25519)
+- Only low-level math operations are optimized for zkVM
+- The patch is **transparent** - frost-ed25519 doesn't know it's using a patched version
+- Easy to replicate for other cryptographic protocols in SP1
+
+**How to apply the patch:**
+
+Add to your workspace `Cargo.toml`:
+```toml
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "patch-v4.1.3-v3.4.0" }
+```
+
+### Full Dependency List
+
+**Rust:**
 - `frost-ed25519` - FROST threshold signature implementation
-- `curve25519-dalek` - Elliptic curve operations (used by FROST)
+- `curve25519-dalek` - Elliptic curve operations (SP1-patched version)
 - `ed25519-dalek` - Ed25519 signature verification
 - `sp1-sdk` / `sp1-zkvm` - SP1 zero-knowledge proving system
 - `serde` / `bincode` - Serialization
 
-### Solidity
+**Solidity:**
 - `@sp1-contracts/ISP1Verifier` - SP1 proof verifier interface
 - Foundry - Smart contract development toolchain
 

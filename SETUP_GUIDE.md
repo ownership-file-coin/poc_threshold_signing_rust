@@ -96,15 +96,28 @@ To start using sp1up, please run:
 
 ✅ **Status**: COMPLETED
 
-### 2.2: Add sp1up to PATH
+### 2.2: Activate sp1up in your PATH
+
+**Note**: The installer automatically added `export PATH="$PATH:/Users/johndickerson/.sp1/bin"` to `~/.zshenv` (on macOS/Linux with zsh) or your shell profile.
+
+**For the current terminal session**, activate the PATH:
 
 ```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export PATH="$HOME/.sp1/bin:$PATH"
+# Option 1: Source the updated environment file
+source ~/.zshenv  # for zsh on macOS
+# OR
+source ~/.bashrc  # for bash
 
-# Reload shell or run:
-source ~/.zshrc  # or ~/.bashrc
+# Option 2: Open a new terminal window (PATH will be active automatically)
 ```
+
+**Verify the PATH is active**:
+
+```bash
+echo $PATH | grep ".sp1/bin"
+```
+
+**Expected**: You should see `/Users/johndickerson/.sp1/bin` in the output.
 
 ### 2.3: Verify sp1up installation
 
@@ -118,6 +131,8 @@ sp1up --version
 /Users/johndickerson/.sp1/bin/sp1up
 sp1up x.x.x
 ```
+
+**Important**: All SP1 tools are installed to `~/.sp1/bin/`, NOT `~/.cargo/bin/`
 
 ### 2.4: Install SP1 toolchain
 

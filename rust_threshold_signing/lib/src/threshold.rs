@@ -407,4 +407,99 @@ mod tests {
 
         assert!(verifying_key.verify(message, &signature).is_ok());
     }
+
+    #[test]
+    fn test_threshold_signing_with_more_than_t_signers() {
+        let (key_packages, pubkey_package) = generate_frost_keys(5, 3).unwrap();
+
+        let signers: Vec<ThresholdSigner> = key_packages
+            .into_iter()
+            .enumerate()
+            .map(|(i, kp)| ThresholdSigner::new((i + 1) as u16, kp))
+            .collect();
+
+        let mut coordinator = ThresholdCoordinator::new(3, signers, pubkey_package);
+
+        let message = b"Hello, threshold signatures!";
+
+        // Try with 4 signers (more than threshold of 3)
+        let signer_indices = vec![1, 2, 3, 4];
+
+        let result = coordinator.perform_threshold_signing(message, signer_indices);
+        if let Err(e) = &result {
+            eprintln!("Threshold signing with 4 signers error: {}", e);
+        }
+
+        // Check if it works
+        assert!(result.is_ok(), "Should work with more than T signers");
+
+        let combined_sig = result.unwrap();
+
+        // Verify the signature using ed25519-dalek
+        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+        let verifying_key = VerifyingKey::from_bytes(&combined_sig.public_key).unwrap();
+        let signature = Signature::from_bytes(&combined_sig.signature);
+
+        assert!(verifying_key.verify(message, &signature).is_ok());
+    }
+
+    #[test]
+    fn test_threshold_signing_with_one_invalid_share() {
+        let (key_packages, pubkey_package) = generate_frost_keys(5, 3).unwrap();
+
+        let signers: Vec<ThresholdSigner> = key_packages
+            .into_iter()
+            .enumerate()
+            .map(|(i, kp)| ThresholdSigner::new((i + 1) as u16, kp))
+            .collect();
+
+        let mut coordinator = ThresholdCoordinator::new(3, signers, pubkey_package.clone());
+
+        let message = b"Hello, threshold signatures!";
+
+        // Round 1: Collect nonce commitments from 4 signers
+        let signer_indices = vec![1, 2, 3, 4];
+        let mut commitments = BTreeMap::new();
+        for &idx in &signer_indices {
+            let signer = &mut coordinator.signers[(idx - 1) as usize];
+            let commitment = signer.round1_generate_nonces();
+            let identifier = frost::Identifier::try_from(idx).unwrap();
+            commitments.insert(identifier, commitment);
+        }
+
+        // Create signing package
+        let signing_package = frost::SigningPackage::new(commitments, message);
+
+        // Round 2: Collect signature shares, but corrupt one
+        let mut signature_shares = BTreeMap::new();
+        for (i, &idx) in signer_indices.iter().enumerate() {
+            let identifier = frost::Identifier::try_from(idx).unwrap();
+            let signer = &coordinator.signers[(idx - 1) as usize];
+
+            if i == 3 {
+                // Create an invalid share by using wrong message
+                let wrong_message = b"Wrong message!";
+                let wrong_package = frost::SigningPackage::new(
+                    signing_package.signing_commitments().clone(),
+                    wrong_message
+                );
+                let invalid_share = signer.round2_sign(wrong_message, &wrong_package).unwrap();
+                signature_shares.insert(identifier, invalid_share);
+            } else {
+                let share = signer.round2_sign(message, &signing_package).unwrap();
+                signature_shares.insert(identifier, share);
+            }
+        }
+
+        // Try to aggregate with one invalid share
+        let result = frost::aggregate(&signing_package, &signature_shares, &pubkey_package);
+
+        // Should FAIL because one share is invalid, even though 3 valid shares exist
+        assert!(result.is_err(), "Aggregation should fail with invalid share even if enough valid shares exist");
+
+        if let Err(e) = result {
+            eprintln!("Expected error with invalid share: {:?}", e);
+        }
+    }
 }
